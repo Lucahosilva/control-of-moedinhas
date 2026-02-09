@@ -1,8 +1,9 @@
 from fastapi import APIRouter, HTTPException
-from typing import List
+from typing import List, Optional
 from bson import ObjectId
 from bson.errors import InvalidId
-from datetime import datetime
+from datetime import datetime, date
+from pydantic import BaseModel
 
 from app.db.mongo import db
 from app.schemas.transaction import TransactionCreate
@@ -10,6 +11,15 @@ from app.schemas.transaction_entry import TransactionEntryCreate
 from app.services.transaction_service import TransactionService
 
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
+
+
+class DeleteTransactionsFilter(BaseModel):
+    """Filtros para deletar múltiplas transações"""
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    account_id: Optional[str] = None
+    cost_center_id: Optional[str] = None
+    user_id: Optional[str] = None
 
 @router.post("/", status_code=201)
 async def create_transaction(payload: TransactionCreate):
@@ -42,7 +52,7 @@ async def create_transaction(payload: TransactionCreate):
         for entry in entries:
             entry_dict = entry.model_dump(exclude={"id"})
             entry_dict["transaction_id"] = transaction_id
-            # Converter date para datetime para MongoDB
+
             entry_dict["due_date"] = datetime.combine(entry_dict["due_date"], datetime.min.time())
             entries_to_insert.append(entry_dict)
 
@@ -188,3 +198,117 @@ async def mark_entry_as_paid(entry_id: str):
         raise HTTPException(status_code=404, detail="Lançamento não encontrado")
 
     return {"message": "Lançamento marcado como pago"}
+
+@router.delete("/{transaction_id}", status_code=200)
+async def delete_transaction(transaction_id: str):
+    """
+    Deleta uma transação e todos os seus lançamentos associados.
+    """
+    try:
+        tid = ObjectId(transaction_id)
+    except InvalidId:
+        raise HTTPException(status_code=400, detail=f"transaction_id '{transaction_id}' is not a valid ObjectId")
+
+    # Deleta a transação
+    transaction_result = await db.transactions.delete_one({"_id": tid})
+    
+    if transaction_result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Transação não encontrada")
+
+    # Deleta todos os lançamentos associados
+    entries_result = await db.transaction_entries.delete_many({"transaction_id": tid})
+
+    return {
+        "message": "Transação deletada com sucesso",
+        "transaction_id": transaction_id,
+        "entries_deleted": entries_result.deleted_count
+    }
+
+@router.delete("/", status_code=200)
+async def delete_multiple_transactions(filters: DeleteTransactionsFilter):
+    """
+    Deleta múltiplas transações e seus lançamentos associados com base em filtros.
+    
+    Filtros disponíveis:
+    - start_date: Data inicial do range (formato: YYYY-MM-DD)
+    - end_date: Data final do range (formato: YYYY-MM-DD)
+    - account_id: ID da conta
+    - cost_center_id: ID do centro de custo
+    - user_id: ID do usuário
+    
+    Exemplo de payload:
+    {
+        "start_date": "2024-01-01",
+        "end_date": "2024-12-31",
+        "cost_center_id": "67a1b2c3d4e5f6g7h8i9j0k1"
+    }
+    """
+    
+    # Verifica se pelo menos um filtro foi fornecido
+    if not any([filters.start_date, filters.end_date, filters.account_id, 
+                filters.cost_center_id, filters.user_id]):
+        raise HTTPException(
+            status_code=400, 
+            detail="É necessário fornecer pelo menos um filtro (start_date, end_date, account_id, cost_center_id ou user_id)"
+        )
+
+    # Constrói o filtro para a query
+    query_filter = {}
+
+    # Filtro por data
+    if filters.start_date or filters.end_date:
+        date_filter = {}
+        if filters.start_date:
+            date_filter["$gte"] = datetime.combine(filters.start_date, datetime.min.time())
+        if filters.end_date:
+            date_filter["$lte"] = datetime.combine(filters.end_date, datetime.max.time())
+        query_filter["date"] = date_filter
+
+    # Filtro por conta
+    if filters.account_id:
+        try:
+            query_filter["account_id"] = ObjectId(filters.account_id)
+        except InvalidId:
+            raise HTTPException(status_code=400, detail=f"account_id '{filters.account_id}' is not a valid ObjectId")
+
+    # Filtro por centro de custo
+    if filters.cost_center_id:
+        try:
+            query_filter["cost_center_id"] = ObjectId(filters.cost_center_id)
+        except InvalidId:
+            raise HTTPException(status_code=400, detail=f"cost_center_id '{filters.cost_center_id}' is not a valid ObjectId")
+
+    # Filtro por usuário
+    if filters.user_id:
+        try:
+            query_filter["user_id"] = ObjectId(filters.user_id)
+        except InvalidId:
+            raise HTTPException(status_code=400, detail=f"user_id '{filters.user_id}' is not a valid ObjectId")
+
+    try:
+        # Encontra as transações que correspondem aos filtros
+        transactions_cursor = db.transactions.find(query_filter)
+        transaction_ids = []
+        async for doc in transactions_cursor:
+            transaction_ids.append(doc["_id"])
+
+        if not transaction_ids:
+            raise HTTPException(status_code=404, detail="Nenhuma transação encontrada com os filtros fornecidos")
+
+        # Deleta as transações
+        transactions_result = await db.transactions.delete_many({"_id": {"$in": transaction_ids}})
+
+        # Deleta todos os lançamentos associados
+        entries_result = await db.transaction_entries.delete_many({"transaction_id": {"$in": transaction_ids}})
+
+        return {
+            "message": "Transações deletadas com sucesso",
+            "transactions_deleted": transactions_result.deleted_count,
+            "entries_deleted": entries_result.deleted_count,
+            "filters_applied": filters.model_dump(exclude_none=True)
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao deletar transações: {str(e)}")
