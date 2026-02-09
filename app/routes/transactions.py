@@ -4,13 +4,26 @@ from bson import ObjectId
 from bson.errors import InvalidId
 from datetime import datetime, date
 from pydantic import BaseModel
+import logging
 
 from app.db.mongo import db
 from app.schemas.transaction import TransactionCreate
 from app.schemas.transaction_entry import TransactionEntryCreate
 from app.services.transaction_service import TransactionService
+from app.core.config import settings
 
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
+
+# Configuração do logger
+logger = logging.getLogger(__name__)
+logger.setLevel(settings.LOG_LEVEL)
+
+# Handler para console (se não houver já)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
 
 class DeleteTransactionsFilter(BaseModel):
@@ -23,6 +36,7 @@ class DeleteTransactionsFilter(BaseModel):
 
 @router.post("/", status_code=201)
 async def create_transaction(payload: TransactionCreate):
+    logger.debug(f"Iniciando criação de transação: {payload.description}, value: {payload.amount}")
     try:
         # Converte IDs string para ObjectId
         transaction_data = {
@@ -41,11 +55,14 @@ async def create_transaction(payload: TransactionCreate):
             transaction_data["installments"] = payload.installments
             transaction_data["total_amount"] = payload.total_amount
 
+        logger.debug(f"Dados da transação convertidos: {transaction_data}")
         result = await db.transactions.insert_one(transaction_data)
         transaction_id = result.inserted_id
+        logger.debug(f"Transação inserida com ID: {transaction_id}")
 
         # 2. gera lançamentos
         entries = TransactionService.generate_entries(payload)
+        logger.debug(f"Gerados {len(entries)} lançamentos")
 
         # 3. salva lançamentos
         entries_to_insert = []
@@ -58,7 +75,9 @@ async def create_transaction(payload: TransactionCreate):
 
         if entries_to_insert:
             await db.transaction_entries.insert_many(entries_to_insert)
+            logger.debug(f"{len(entries_to_insert)} lançamentos inseridos no banco")
 
+        logger.info(f"Transação criada com sucesso: {transaction_id}")
         return {
             "message": "Transação criada com sucesso",
             "transaction_id": str(transaction_id),
@@ -66,15 +85,19 @@ async def create_transaction(payload: TransactionCreate):
         }
 
     except ValueError as e:
+        logger.error(f"Erro de validação ao criar transação: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Erro de validação: {str(e)}")
     except Exception as e:
+        logger.error(f"Erro ao criar transação: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erro ao criar transação: {str(e)}")
 
 @router.get("/", response_model=List[dict])
 async def list_transactions(cost_center_id: str):
+    logger.debug(f"Listando transações para cost_center_id: {cost_center_id}")
     try:
         hid = ObjectId(cost_center_id)
     except InvalidId:
+        logger.error(f"cost_center_id inválido: {cost_center_id}")
         raise HTTPException(status_code=400, detail=f"cost_center_id '{cost_center_id}' is not a valid ObjectId")
 
     cursor = db.transactions.find({"cost_center_id": hid})
@@ -95,6 +118,7 @@ async def list_transactions(cost_center_id: str):
 
             transactions.append(doc)
 
+    logger.info(f"Retornando {len(transactions)} transações para cost_center_id: {cost_center_id}")
     return transactions
 
 @router.get("/entries/month/{year}/{month}")
@@ -104,10 +128,12 @@ async def list_entries_by_month(
     month: int
 ):
     competence = f"{year}-{str(month).zfill(2)}"
+    logger.debug(f"Listando lançamentos mensais - cost_center_id: {cost_center_id}, competence: {competence}")
 
     try:
         hid = ObjectId(cost_center_id)
     except InvalidId:
+        logger.error(f"cost_center_id inválido: {cost_center_id}")
         raise HTTPException(status_code=400, detail=f"cost_center_id '{cost_center_id}' is not a valid ObjectId")
 
     cursor = db.transaction_entries.find({
@@ -130,6 +156,7 @@ async def list_entries_by_month(
                     pass
         entries.append(doc)
 
+    logger.info(f"Retornando {len(entries)} lançamentos para competence: {competence}")
     return entries
 
 @router.get("/entries/card/{account_id}/{year}/{month}")
@@ -140,15 +167,18 @@ async def card_statement(
     month: int
 ):
     competence = f"{year}-{str(month).zfill(2)}"
+    logger.debug(f"Extrato do cartão - account_id: {account_id}, competence: {competence}")
 
     try:
         hid = ObjectId(cost_center_id)
     except InvalidId:
+        logger.error(f"cost_center_id inválido: {cost_center_id}")
         raise HTTPException(status_code=400, detail=f"cost_center_id '{cost_center_id}' is not a valid ObjectId")
 
     try:
         aid = ObjectId(account_id)
     except InvalidId:
+        logger.error(f"account_id inválido: {account_id}")
         raise HTTPException(status_code=400, detail=f"account_id '{account_id}' is not a valid ObjectId")
 
     cursor = db.transaction_entries.find({
@@ -176,6 +206,7 @@ async def card_statement(
 
         entries.append(doc)
 
+    logger.info(f"Extrato do cartão: {len(entries)} lançamentos, total: {round(total, 2)}")
     return {
         "competence_month": competence,
         "total": round(total, 2),
@@ -184,9 +215,11 @@ async def card_statement(
 
 @router.patch("/entries/{entry_id}/pay")
 async def mark_entry_as_paid(entry_id: str):
+    logger.debug(f"Marcando lançamento {entry_id} como pago")
     try:
         eid = ObjectId(entry_id)
     except InvalidId:
+        logger.error(f"entry_id inválido: {entry_id}")
         raise HTTPException(status_code=400, detail=f"entry_id '{entry_id}' is not a valid ObjectId")
 
     result = await db.transaction_entries.update_one(
@@ -195,7 +228,10 @@ async def mark_entry_as_paid(entry_id: str):
     )
 
     if result.matched_count == 0:
+        logger.warning(f"Lançamento não encontrado: {entry_id}")
         raise HTTPException(status_code=404, detail="Lançamento não encontrado")
+
+    logger.info(f"Lançamento marcado como pago: {entry_id}")
 
     return {"message": "Lançamento marcado como pago"}
 
@@ -204,20 +240,24 @@ async def delete_transaction(transaction_id: str):
     """
     Deleta uma transação e todos os seus lançamentos associados.
     """
+    logger.debug(f"Deletando transação: {transaction_id}")
     try:
         tid = ObjectId(transaction_id)
     except InvalidId:
+        logger.error(f"transaction_id inválido: {transaction_id}")
         raise HTTPException(status_code=400, detail=f"transaction_id '{transaction_id}' is not a valid ObjectId")
 
     # Deleta a transação
     transaction_result = await db.transactions.delete_one({"_id": tid})
     
     if transaction_result.deleted_count == 0:
+        logger.warning(f"Transação não encontrada: {transaction_id}")
         raise HTTPException(status_code=404, detail="Transação não encontrada")
 
     # Deleta todos os lançamentos associados
     entries_result = await db.transaction_entries.delete_many({"transaction_id": tid})
-
+    
+    logger.info(f"Transação deletada: {transaction_id}, {entries_result.deleted_count} lançamentos removidos")
     return {
         "message": "Transação deletada com sucesso",
         "transaction_id": transaction_id,
@@ -243,10 +283,12 @@ async def delete_multiple_transactions(filters: DeleteTransactionsFilter):
         "cost_center_id": "67a1b2c3d4e5f6g7h8i9j0k1"
     }
     """
+    logger.debug(f"Deletando múltiplas transações com filtros: {filters.model_dump(exclude_none=True)}")
     
     # Verifica se pelo menos um filtro foi fornecido
     if not any([filters.start_date, filters.end_date, filters.account_id, 
                 filters.cost_center_id, filters.user_id]):
+        logger.error("Nenhum filtro fornecido para deleção de múltiplas transações")
         raise HTTPException(
             status_code=400, 
             detail="É necessário fornecer pelo menos um filtro (start_date, end_date, account_id, cost_center_id ou user_id)"
@@ -263,44 +305,58 @@ async def delete_multiple_transactions(filters: DeleteTransactionsFilter):
         if filters.end_date:
             date_filter["$lte"] = datetime.combine(filters.end_date, datetime.max.time())
         query_filter["date"] = date_filter
+        logger.debug(f"Filtro de data aplicado: {date_filter}")
 
     # Filtro por conta
     if filters.account_id:
         try:
             query_filter["account_id"] = ObjectId(filters.account_id)
+            logger.debug(f"Filtro de conta aplicado: {filters.account_id}")
         except InvalidId:
+            logger.error(f"account_id inválido: {filters.account_id}")
             raise HTTPException(status_code=400, detail=f"account_id '{filters.account_id}' is not a valid ObjectId")
 
     # Filtro por centro de custo
     if filters.cost_center_id:
         try:
             query_filter["cost_center_id"] = ObjectId(filters.cost_center_id)
+            logger.debug(f"Filtro de centro de custo aplicado: {filters.cost_center_id}")
         except InvalidId:
+            logger.error(f"cost_center_id inválido: {filters.cost_center_id}")
             raise HTTPException(status_code=400, detail=f"cost_center_id '{filters.cost_center_id}' is not a valid ObjectId")
 
     # Filtro por usuário
     if filters.user_id:
         try:
             query_filter["user_id"] = ObjectId(filters.user_id)
+            logger.debug(f"Filtro de usuário aplicado: {filters.user_id}")
         except InvalidId:
+            logger.error(f"user_id inválido: {filters.user_id}")
             raise HTTPException(status_code=400, detail=f"user_id '{filters.user_id}' is not a valid ObjectId")
 
     try:
         # Encontra as transações que correspondem aos filtros
+        logger.debug(f"Buscando transações com filtros: {query_filter}")
         transactions_cursor = db.transactions.find(query_filter)
         transaction_ids = []
         async for doc in transactions_cursor:
             transaction_ids.append(doc["_id"])
 
+        logger.debug(f"Encontradas {len(transaction_ids)} transações para deletar")
+
         if not transaction_ids:
+            logger.warning("Nenhuma transação encontrada com os filtros fornecidos")
             raise HTTPException(status_code=404, detail="Nenhuma transação encontrada com os filtros fornecidos")
 
         # Deleta as transações
+        logger.debug(f"Deletando {len(transaction_ids)} transações")
         transactions_result = await db.transactions.delete_many({"_id": {"$in": transaction_ids}})
 
         # Deleta todos os lançamentos associados
+        logger.debug(f"Deletando lançamentos associados às transações")
         entries_result = await db.transaction_entries.delete_many({"transaction_id": {"$in": transaction_ids}})
 
+        logger.info(f"Transações deletadas: {transactions_result.deleted_count}, lançamentos removidos: {entries_result.deleted_count}")
         return {
             "message": "Transações deletadas com sucesso",
             "transactions_deleted": transactions_result.deleted_count,
@@ -311,4 +367,5 @@ async def delete_multiple_transactions(filters: DeleteTransactionsFilter):
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"Erro ao deletar transações: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erro ao deletar transações: {str(e)}")
