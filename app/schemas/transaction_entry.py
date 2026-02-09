@@ -14,4 +14,4 @@ class TransactionEntryCreate(MongoBaseModel):
     payment_method: str
     account_id: PyObjectId
     category_id: PyObjectId
-    household_id: PyObjectId
+    cost_center_id: PyObjectId

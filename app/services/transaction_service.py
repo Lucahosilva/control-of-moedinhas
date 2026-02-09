@@ -58,7 +58,7 @@ class TransactionService:
                         payment_method=pm.type,
                         account_id=transaction.account_id,
                         category_id=transaction.category_id,
-                        household_id=transaction.household_id,
+                        cost_center_id=transaction.cost_center_id,
                     )
                 )
 

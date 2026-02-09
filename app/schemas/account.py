@@ -6,7 +6,7 @@ class AccountCreate(MongoBaseModel):
     name: str
     type: str  # checking | savings | credit_card
     initial_balance: float
-    household_id: PyObjectId
+    cost_center_id: PyObjectId
 
     # só se for cartão
     closing_day: Optional[int] = None

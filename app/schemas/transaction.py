@@ -55,7 +55,7 @@ class TransactionCreate(BaseModel):
     # relacionamentos
     account_id: Optional[str] = None
     category_id: Optional[str] = None
-    household_id: Optional[str] = None
+    cost_center_id: Optional[str] = None
 
     # divisão de despesas (opcional)
     split_type: Optional[str] = None  # "equal" | "custom" | "percentage" | None (sem divisão)

@@ -1,9 +1,9 @@
-# schemas/household.py
+# schemas/cost_center.py
 from typing import List
 from app.schemas.base import MongoBaseModel, PyObjectId
 
-class HouseholdCreate(MongoBaseModel):
+class CostCenterCreate(MongoBaseModel):
     name: str
 
-class HouseholdDB(HouseholdCreate):
+class CostCenterDB(CostCenterCreate):
     members: List[PyObjectId] = []

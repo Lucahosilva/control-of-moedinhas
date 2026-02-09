@@ -9,12 +9,12 @@ router = APIRouter(prefix="/users", tags=["Users"])
 
 @router.post("/", status_code=201, response_model=dict)
 async def create_user(payload: UserCreate):
-    """Criar um novo usuário em um household"""
+    """Criar um novo usuário em um centro de custo"""
     try:
-        # Validar household
-        household = await db.households.find_one({"_id": ObjectId(payload.household_id)})
-        if not household:
-            raise HTTPException(status_code=404, detail="Domicílio não encontrado")
+        # Validar cost_center
+        cost_center = await db.cost_centers.find_one({"_id": ObjectId(payload.cost_center_id)})
+        if not cost_center:
+            raise HTTPException(status_code=404, detail="Centro de custo não encontrado")
         
         # TODO: Hash da senha
         user_data = {
@@ -22,7 +22,7 @@ async def create_user(payload: UserCreate):
             "email": payload.email,
             "password_hash": payload.password,  # TODO: Implementar hash
             "role": "member",
-            "household_id": ObjectId(payload.household_id)
+            "cost_center_id": ObjectId(payload.cost_center_id)
         }
         
         # Verificar se email já existe
@@ -32,9 +32,9 @@ async def create_user(payload: UserCreate):
         
         result = await db.users.insert_one(user_data)
         
-        # Adicionar usuário aos members do household
-        await db.households.update_one(
-            {"_id": ObjectId(payload.household_id)},
+        # Adicionar usuário aos members do cost_center
+        await db.cost_centers.update_one(
+            {"_id": ObjectId(payload.cost_center_id)},
             {"$push": {"members": result.inserted_id}}
         )
         
@@ -43,7 +43,7 @@ async def create_user(payload: UserCreate):
             "user_id": str(result.inserted_id),
             "name": payload.name,
             "email": payload.email,
-            "household_id": payload.household_id
+            "cost_center_id": payload.cost_center_id
         }
     except HTTPException as e:
         raise e
@@ -52,18 +52,18 @@ async def create_user(payload: UserCreate):
 
 
 @router.get("/", response_model=List[dict])
-async def list_users(household_id: str = None):
-    """Listar usuários (opcionalmente filtrados por household_id)"""
+async def list_users(cost_center_id: str = None):
+    """Listar usuários (opcionalmente filtrados por cost_center_id)"""
     try:
-        if household_id:
-            cursor = db.users.find({"household_id": ObjectId(household_id)})
+        if cost_center_id:
+            cursor = db.users.find({"cost_center_id": ObjectId(cost_center_id)})
         else:
             cursor = db.users.find()
         
         users = []
         async for doc in cursor:
             doc["_id"] = str(doc["_id"])
-            doc["household_id"] = str(doc["household_id"])
+            doc["cost_center_id"] = str(doc["cost_center_id"])
             # Não retornar senha
             doc.pop("password_hash", None)
             users.append(doc)
@@ -83,7 +83,7 @@ async def get_user(user_id: str):
             raise HTTPException(status_code=404, detail="Usuário não encontrado")
         
         user["_id"] = str(user["_id"])
-        user["household_id"] = str(user["household_id"])
+        user["cost_center_id"] = str(user["cost_center_id"])
         # Não retornar senha
         user.pop("password_hash", None)
         
@@ -94,16 +94,16 @@ async def get_user(user_id: str):
         raise HTTPException(status_code=500, detail=f"Erro ao obter usuário: {str(e)}")
 
 
-@router.get("/household/{household_id}/members", response_model=List[dict])
-async def get_household_members(household_id: str):
-    """Obter todos os membros de um household"""
+@router.get("/cost-center/{cost_center_id}/members", response_model=List[dict])
+async def get_cost_center_members(cost_center_id: str):
+    """Obter todos os membros de um cost_center"""
     try:
-        cursor = db.users.find({"household_id": ObjectId(household_id)})
+        cursor = db.users.find({"cost_center_id": ObjectId(cost_center_id)})
         
         users = []
         async for doc in cursor:
             doc["_id"] = str(doc["_id"])
-            doc["household_id"] = str(doc["household_id"])
+            doc["cost_center_id"] = str(doc["cost_center_id"])
             doc.pop("password_hash", None)
             users.append(doc)
         

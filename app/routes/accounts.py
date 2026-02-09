@@ -11,10 +11,10 @@ router = APIRouter(prefix="/accounts", tags=["Accounts"])
 async def create_account(payload: AccountCreate):
     """Criar uma nova conta"""
     try:
-        # Validar household
-        household = await db.households.find_one({"_id": ObjectId(payload.household_id)})
-        if not household:
-            raise HTTPException(status_code=404, detail="Domicílio não encontrado")
+        # Validar cost_center
+        cost_center = await db.cost_centers.find_one({"_id": ObjectId(payload.cost_center_id)})
+        if not cost_center:
+            raise HTTPException(status_code=404, detail="Centro de custo não encontrado")
         
         # Validar type
         valid_types = ["checking", "savings", "credit_card"]
@@ -37,7 +37,7 @@ async def create_account(payload: AccountCreate):
             "type": payload.type,
             "initial_balance": payload.initial_balance,
             "current_balance": payload.initial_balance,
-            "household_id": ObjectId(payload.household_id)
+            "cost_center_id": ObjectId(payload.cost_center_id)
         }
         
         # Adicionar campos opcionais do cartão
@@ -54,7 +54,7 @@ async def create_account(payload: AccountCreate):
             "name": payload.name,
             "type": payload.type,
             "initial_balance": payload.initial_balance,
-            "household_id": str(payload.household_id)
+            "cost_center_id": str(payload.cost_center_id)
         }
     except HTTPException as e:
         raise e
@@ -63,18 +63,18 @@ async def create_account(payload: AccountCreate):
 
 
 @router.get("/", response_model=List[dict])
-async def list_accounts(household_id: str = None):
-    """Listar contas (opcionalmente filtradas por household_id)"""
+async def list_accounts(cost_center_id: str = None):
+    """Listar contas (opcionalmente filtradas por cost_center_id)"""
     try:
-        if household_id:
-            cursor = db.accounts.find({"household_id": ObjectId(household_id)})
+        if cost_center_id:
+            cursor = db.accounts.find({"cost_center_id": ObjectId(cost_center_id)})
         else:
             cursor = db.accounts.find()
         
         accounts = []
         async for doc in cursor:
             doc["_id"] = str(doc["_id"])
-            doc["household_id"] = str(doc["household_id"])
+            doc["cost_center_id"] = str(doc["cost_center_id"])
             accounts.append(doc)
         
         return accounts
@@ -92,7 +92,7 @@ async def get_account(account_id: str):
             raise HTTPException(status_code=404, detail="Conta não encontrada")
         
         account["_id"] = str(account["_id"])
-        account["household_id"] = str(account["household_id"])
+        account["cost_center_id"] = str(account["cost_center_id"])
         
         return account
     except HTTPException as e:

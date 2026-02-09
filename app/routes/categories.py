@@ -11,10 +11,10 @@ router = APIRouter(prefix="/categories", tags=["Categories"])
 async def create_category(payload: CategoryCreate):
     """Criar uma nova categoria"""
     try:
-        # Validar que household_id existe
-        household = await db.households.find_one({"_id": ObjectId(payload.household_id)})
-        if not household:
-            raise HTTPException(status_code=404, detail="Domicílio não encontrado")
+        # Validar que cost_center_id existe
+        cost_center = await db.cost_centers.find_one({"_id": ObjectId(payload.cost_center_id)})
+        if not cost_center:
+            raise HTTPException(status_code=404, detail="Centro de custo não encontrado")
         
         # Validar type
         if payload.type not in ["income", "expense"]:
@@ -23,7 +23,7 @@ async def create_category(payload: CategoryCreate):
         category_data = {
             "name": payload.name,
             "type": payload.type,
-            "household_id": ObjectId(payload.household_id)
+            "cost_center_id": ObjectId(payload.cost_center_id)
         }
         
         result = await db.categories.insert_one(category_data)
@@ -33,7 +33,7 @@ async def create_category(payload: CategoryCreate):
             "category_id": str(result.inserted_id),
             "name": payload.name,
             "type": payload.type,
-            "household_id": str(payload.household_id)
+            "cost_center_id": str(payload.cost_center_id)
         }
     except HTTPException as e:
         raise e
@@ -42,18 +42,18 @@ async def create_category(payload: CategoryCreate):
 
 
 @router.get("/", response_model=List[dict])
-async def list_categories(household_id: str = None):
-    """Listar categorias (opcionalmente filtradas por household_id)"""
+async def list_categories(cost_center_id: str = None):
+    """Listar categorias (opcionalmente filtradas por cost_center_id)"""
     try:
-        if household_id:
-            cursor = db.categories.find({"household_id": ObjectId(household_id)})
+        if cost_center_id:
+            cursor = db.categories.find({"cost_center_id": ObjectId(cost_center_id)})
         else:
             cursor = db.categories.find()
         
         categories = []
         async for doc in cursor:
             doc["_id"] = str(doc["_id"])
-            doc["household_id"] = str(doc["household_id"])
+            doc["cost_center_id"] = str(doc["cost_center_id"])
             categories.append(doc)
         
         return categories
@@ -71,7 +71,7 @@ async def get_category(category_id: str):
             raise HTTPException(status_code=404, detail="Categoria não encontrada")
         
         category["_id"] = str(category["_id"])
-        category["household_id"] = str(category["household_id"])
+        category["cost_center_id"] = str(category["cost_center_id"])
         
         return category
     except HTTPException as e:

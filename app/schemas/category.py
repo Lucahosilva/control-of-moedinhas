@@ -4,4 +4,4 @@ from app.schemas.base import MongoBaseModel, PyObjectId
 class CategoryCreate(MongoBaseModel):
     name: str
     type: str  # income | expense
-    household_id: PyObjectId
+    cost_center_id: PyObjectId
