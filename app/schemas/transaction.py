@@ -31,7 +31,7 @@ class PaymentMethod(BaseModel):
 
 class TransactionCreate(BaseModel):
     description: str
-    amount: float
+    total_amount: float
 
     flow_type: FlowType
     transaction_type: TransactionType
@@ -42,25 +42,23 @@ class TransactionCreate(BaseModel):
 
     # parcelamento
     installments: Optional[int] = None
-    total_amount: Optional[float] = None
 
     # relacionamentos
     account_id: Optional[str] = None
     category_id: Optional[str] = None
     cost_center_id: Optional[str] = None
 
-
-    @field_validator('amount')
+    @field_validator('total_amount')
     @classmethod
-    def amount_must_be_positive(cls, v):
+    def total_amount_must_be_positive(cls, v):
         if v <= 0:
-            raise ValueError('amount deve ser maior que 0')
+            raise ValueError('total_amount deve ser maior que 0')
         return v
 
     @model_validator(mode='after')
     def validate_installment_fields(self):
         if self.transaction_type == TransactionType.installment:
-            if not self.installments or not self.total_amount:
-                raise ValueError('installments e total_amount são obrigatórios para transações parceladas')
+            if not self.installments:
+                raise ValueError('installments é obrigatório para transações parceladas')
         return self
 

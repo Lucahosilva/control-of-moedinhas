@@ -36,12 +36,21 @@ class DeleteTransactionsFilter(BaseModel):
 
 @router.post("/", status_code=201)
 async def create_transaction(payload: TransactionCreate):
-    logger.debug(f"Iniciando criação de transação: {payload.description}, value: {payload.amount}")
+    logger.debug(f"Iniciando criação de transação: {payload.description}, value: {payload.total_amount}")
     try:
+        # Calcula o amount baseado no tipo de transação
+        if payload.transaction_type == "installment":
+            amount = round(payload.total_amount / payload.installments, 2)
+        else:
+            amount = payload.total_amount
+        
+        logger.debug(f"Amount calculado: {amount}")
+        
         # Converte IDs string para ObjectId
         transaction_data = {
             "description": payload.description,
-            "amount": payload.amount,
+            "amount": amount,
+            "total_amount": payload.total_amount,
             "flow_type": payload.flow_type.value,
             "transaction_type": payload.transaction_type.value,
             "payment_method": payload.payment_method.model_dump(),
@@ -53,7 +62,6 @@ async def create_transaction(payload: TransactionCreate):
         
         if payload.transaction_type == "installment":
             transaction_data["installments"] = payload.installments
-            transaction_data["total_amount"] = payload.total_amount
 
         logger.debug(f"Dados da transação convertidos: {transaction_data}")
         result = await db.transactions.insert_one(transaction_data)

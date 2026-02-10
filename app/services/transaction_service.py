@@ -27,13 +27,13 @@ class TransactionService:
                 TransactionEntryCreate(
                     transaction_id=None,
                     description=transaction.description,
-                    amount=transaction.amount,
+                    amount=transaction.total_amount,
                     competence_month=competence_month(due),
                     due_date=due,
                     payment_method=pm.type,
                     account_id=transaction.account_id,
                     category_id=transaction.category_id,
-                    household_id=transaction.household_id,
+                    cost_center_id=transaction.cost_center_id,
                 )
             )
 
@@ -72,13 +72,13 @@ class TransactionService:
                 TransactionEntryCreate(
                     transaction_id=None,
                     description=transaction.description,
-                    amount=transaction.amount,
+                    amount=transaction.total_amount,
                     competence_month=competence_month(due),
                     due_date=due,
                     payment_method=pm.type,
                     account_id=transaction.account_id,
                     category_id=transaction.category_id,
-                    household_id=transaction.household_id,
+                    cost_center_id=transaction.cost_center_id,
                 )
             )
 
