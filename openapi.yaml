@@ -236,6 +236,61 @@ paths:
               schema:
                 $ref: '#/components/schemas/Account'
 
+  /cost-centers/:
+    post:
+      summary: Criar centro de custo
+      tags: [Cost Centers]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CostCenterCreate'
+      responses:
+        '201':
+          description: Centro de custo criado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  cost_center_id:
+                    type: string
+                  name:
+                    type: string
+    get:
+      summary: Listar centros de custo
+      tags: [Cost Centers]
+      responses:
+        '200':
+          description: Lista de centros de custo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CostCenterDB'
+
+  /cost-centers/{cost_center_id}:
+    get:
+      summary: Obter centro de custo
+      tags: [Cost Centers]
+      parameters:
+        - name: cost_center_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Centro de custo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CostCenterDB'
+
   /transactions/:
     post:
       summary: Criar transação
@@ -257,7 +312,7 @@ paths:
       summary: Listar transações
       tags: [Transactions]
       parameters:
-        - name: household_id
+        - name: cost_center_id
           in: query
           required: true
           schema:
@@ -271,6 +326,58 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/TransactionDB'
+
+  /transactions/{transaction_id}:
+    delete:
+      summary: Deletar transação
+      tags: [Transactions]
+      parameters:
+        - name: transaction_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Transação deletada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  transaction_id:
+                    type: string
+                  entries_deleted:
+                    type: integer
+
+  /transactions/:
+    delete:
+      summary: Deletar múltiplas transações
+      tags: [Transactions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteTransactionsFilter'
+      responses:
+        '200':
+          description: Transações deletadas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  transactions_deleted:
+                    type: integer
+                  entries_deleted:
+                    type: integer
+                  filters_applied:
+                    type: object
 
   /transactions/entries/month/{year}/{month}:
     get:
@@ -287,7 +394,7 @@ paths:
           required: true
           schema:
             type: integer
-        - name: household_id
+        - name: cost_center_id
           in: query
           required: true
           schema:
@@ -322,7 +429,7 @@ paths:
           required: true
           schema:
             type: integer
-        - name: household_id
+        - name: cost_center_id
           in: query
           required: true
           schema:
@@ -704,11 +811,11 @@ components:
 
     TransactionCreate:
       type: object
-      required: [description, amount, flow_type, transaction_type, payment_method, date]
+      required: [description, total_amount, flow_type, transaction_type, payment_method, date]
       properties:
         description:
           type: string
-        amount:
+        total_amount:
           type: number
         flow_type:
           type: string
@@ -723,22 +830,16 @@ components:
           format: date
         installments:
           type: integer
-        total_amount:
-          type: number
+          nullable: true
         account_id:
           type: string
+          nullable: true
         category_id:
           type: string
-        household_id:
+          nullable: true
+        cost_center_id:
           type: string
-        split_type:
-          type: string
-        split_users:
-          type: array
-          items:
-            $ref: '#/components/schemas/SplitUser'
-        paid_by_user_id:
-          type: string
+          nullable: true
 
     TransactionDB:
       type: object
@@ -747,6 +848,8 @@ components:
           type: string
         description:
           type: string
+        total_amount:
+          type: number
         amount:
           type: number
         flow_type:
@@ -762,7 +865,7 @@ components:
           type: string
         category_id:
           type: string
-        household_id:
+        cost_center_id:
           type: string
 
     TransactionCreatedResponse:
@@ -782,12 +885,14 @@ components:
           type: string
         transaction_id:
           type: string
+          nullable: true
         description:
           type: string
         amount:
           type: number
         competence_month:
           type: string
+          description: "YYYY-MM"
         due_date:
           type: string
           format: date
@@ -799,8 +904,48 @@ components:
           type: string
         category_id:
           type: string
-        household_id:
+        cost_center_id:
           type: string
+
+    CostCenterCreate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+
+    CostCenterDB:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        members:
+          type: array
+          items:
+            type: string
+
+    DeleteTransactionsFilter:
+      type: object
+      properties:
+        start_date:
+          type: string
+          format: date
+          nullable: true
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        account_id:
+          type: string
+          nullable: true
+        cost_center_id:
+          type: string
+          nullable: true
+        user_id:
+          type: string
+          nullable: true
 
     ExpenseSplitUser:
       type: object
