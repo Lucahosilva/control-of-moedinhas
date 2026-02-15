@@ -11,19 +11,14 @@ router = APIRouter(prefix="/users", tags=["Users"])
 async def create_user(payload: UserCreate):
     """Criar um novo usuário em um centro de custo"""
     try:
-        # Validar cost_center
-        cost_center = await db.cost_centers.find_one({"_id": ObjectId(payload.cost_center_id)})
-        if not cost_center:
-            raise HTTPException(status_code=404, detail="Centro de custo não encontrado")
         
         # TODO: Hash da senha
         user_data = {
             "name": payload.name,
             "email": payload.email,
             "password_hash": payload.password,  # TODO: Implementar hash
-            "role": "member",
-            "cost_center_id": ObjectId(payload.cost_center_id)
-        }
+            "role": "member" 
+            }
         
         # Verificar se email já existe
         existing = await db.users.find_one({"email": payload.email})
@@ -32,18 +27,12 @@ async def create_user(payload: UserCreate):
         
         result = await db.users.insert_one(user_data)
         
-        # Adicionar usuário aos members do cost_center
-        await db.cost_centers.update_one(
-            {"_id": ObjectId(payload.cost_center_id)},
-            {"$push": {"members": result.inserted_id}}
-        )
         
         return {
             "message": "Usuário criado com sucesso",
             "user_id": str(result.inserted_id),
             "name": payload.name,
             "email": payload.email,
-            "cost_center_id": payload.cost_center_id
         }
     except HTTPException as e:
         raise e
@@ -55,10 +44,7 @@ async def create_user(payload: UserCreate):
 async def list_users(cost_center_id: str = None):
     """Listar usuários (opcionalmente filtrados por cost_center_id)"""
     try:
-        if cost_center_id:
-            cursor = db.users.find({"cost_center_id": ObjectId(cost_center_id)})
-        else:
-            cursor = db.users.find()
+        cursor = db.users.find()
         
         users = []
         async for doc in cursor:

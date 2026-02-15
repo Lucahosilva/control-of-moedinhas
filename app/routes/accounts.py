@@ -11,10 +11,6 @@ router = APIRouter(prefix="/accounts", tags=["Accounts"])
 async def create_account(payload: AccountCreate):
     """Criar uma nova conta"""
     try:
-        # Validar cost_center
-        cost_center = await db.cost_centers.find_one({"_id": ObjectId(payload.cost_center_id)})
-        if not cost_center:
-            raise HTTPException(status_code=404, detail="Centro de custo não encontrado")
         
         # Validar type
         valid_types = ["checking", "savings", "credit_card"]
@@ -36,8 +32,7 @@ async def create_account(payload: AccountCreate):
             "name": payload.name,
             "type": payload.type,
             "initial_balance": payload.initial_balance,
-            "current_balance": payload.initial_balance,
-            "cost_center_id": ObjectId(payload.cost_center_id)
+            "current_balance": payload.initial_balance
         }
         
         # Adicionar campos opcionais do cartão
@@ -53,8 +48,7 @@ async def create_account(payload: AccountCreate):
             "account_id": str(result.inserted_id),
             "name": payload.name,
             "type": payload.type,
-            "initial_balance": payload.initial_balance,
-            "cost_center_id": str(payload.cost_center_id)
+            "initial_balance": payload.initial_balance
         }
     except HTTPException as e:
         raise e
@@ -66,10 +60,7 @@ async def create_account(payload: AccountCreate):
 async def list_accounts(cost_center_id: str = None):
     """Listar contas (opcionalmente filtradas por cost_center_id)"""
     try:
-        if cost_center_id:
-            cursor = db.accounts.find({"cost_center_id": ObjectId(cost_center_id)})
-        else:
-            cursor = db.accounts.find()
+        cursor = db.accounts.find()
         
         accounts = []
         async for doc in cursor:

@@ -4,6 +4,7 @@ from bson import ObjectId
 
 from app.db.mongo import db
 from app.schemas.category import CategoryCreate
+from app.services.category_service import CategoryService
 
 router = APIRouter(prefix="/categories", tags=["Categories"])
 
@@ -11,30 +12,10 @@ router = APIRouter(prefix="/categories", tags=["Categories"])
 async def create_category(payload: CategoryCreate):
     """Criar uma nova categoria"""
     try:
-        # Validar que cost_center_id existe
-        cost_center = await db.cost_centers.find_one({"_id": ObjectId(payload.cost_center_id)})
-        if not cost_center:
-            raise HTTPException(status_code=404, detail="Centro de custo não encontrado")
-        
-        # Validar type
-        if payload.type not in ["income", "expense"]:
-            raise HTTPException(status_code=400, detail="type deve ser 'income' ou 'expense'")
-        
-        category_data = {
-            "name": payload.name,
-            "type": payload.type,
-            "cost_center_id": ObjectId(payload.cost_center_id)
-        }
-        
-        result = await db.categories.insert_one(category_data)
-        
-        return {
-            "message": "Categoria criada com sucesso",
-            "category_id": str(result.inserted_id),
-            "name": payload.name,
-            "type": payload.type,
-            "cost_center_id": str(payload.cost_center_id)
-        }
+
+        service = CategoryService()
+        return await service.create_category(payload)
+    
     except HTTPException as e:
         raise e
     except Exception as e:
@@ -45,10 +26,7 @@ async def create_category(payload: CategoryCreate):
 async def list_categories(cost_center_id: str = None):
     """Listar categorias (opcionalmente filtradas por cost_center_id)"""
     try:
-        if cost_center_id:
-            cursor = db.categories.find({"cost_center_id": ObjectId(cost_center_id)})
-        else:
-            cursor = db.categories.find()
+        cursor = db.categories.find()
         
         categories = []
         async for doc in cursor:
@@ -71,7 +49,6 @@ async def get_category(category_id: str):
             raise HTTPException(status_code=404, detail="Categoria não encontrada")
         
         category["_id"] = str(category["_id"])
-        category["cost_center_id"] = str(category["cost_center_id"])
         
         return category
     except HTTPException as e:
