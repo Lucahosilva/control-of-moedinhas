@@ -12,4 +12,3 @@ class UserDB(MongoBaseModel):
     email: str
     password_hash: str
     role: str = "member"  # admin | member
-    cost_center_id: PyObjectId
