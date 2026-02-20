@@ -31,7 +31,6 @@ async def list_categories(cost_center_id: str = None):
         categories = []
         async for doc in cursor:
             doc["_id"] = str(doc["_id"])
-            doc["cost_center_id"] = str(doc["cost_center_id"])
             categories.append(doc)
         
         return categories

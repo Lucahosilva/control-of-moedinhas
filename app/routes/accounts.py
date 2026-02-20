@@ -58,14 +58,14 @@ async def create_account(payload: AccountCreate):
 
 @router.get("/", response_model=List[dict])
 async def list_accounts(cost_center_id: str = None):
-    """Listar contas (opcionalmente filtradas por cost_center_id)"""
+    """Listar contas"""
     try:
         cursor = db.accounts.find()
         
         accounts = []
         async for doc in cursor:
             doc["_id"] = str(doc["_id"])
-            doc["cost_center_id"] = str(doc["cost_center_id"])
+            
             accounts.append(doc)
         
         return accounts
@@ -83,7 +83,6 @@ async def get_account(account_id: str):
             raise HTTPException(status_code=404, detail="Conta não encontrada")
         
         account["_id"] = str(account["_id"])
-        account["cost_center_id"] = str(account["cost_center_id"])
         
         return account
     except HTTPException as e:

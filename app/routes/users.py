@@ -49,8 +49,6 @@ async def list_users(cost_center_id: str = None):
         users = []
         async for doc in cursor:
             doc["_id"] = str(doc["_id"])
-            doc["cost_center_id"] = str(doc["cost_center_id"])
-            # Não retornar senha
             doc.pop("password_hash", None)
             users.append(doc)
         
@@ -69,8 +67,6 @@ async def get_user(user_id: str):
             raise HTTPException(status_code=404, detail="Usuário não encontrado")
         
         user["_id"] = str(user["_id"])
-        user["cost_center_id"] = str(user["cost_center_id"])
-        # Não retornar senha
         user.pop("password_hash", None)
         
         return user

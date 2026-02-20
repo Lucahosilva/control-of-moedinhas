@@ -100,15 +100,9 @@ async def create_transaction(payload: TransactionCreate):
         raise HTTPException(status_code=500, detail=f"Erro ao criar transação: {str(e)}")
 
 @router.get("/", response_model=List[dict])
-async def list_transactions(cost_center_id: str):
-    logger.debug(f"Listando transações para cost_center_id: {cost_center_id}")
-    try:
-        hid = ObjectId(cost_center_id)
-    except InvalidId:
-        logger.error(f"cost_center_id inválido: {cost_center_id}")
-        raise HTTPException(status_code=400, detail=f"cost_center_id '{cost_center_id}' is not a valid ObjectId")
+async def list_transactions():
 
-    cursor = db.transactions.find({"cost_center_id": hid})
+    cursor = db.transactions.find()
 
     transactions = []
     async for doc in cursor:
@@ -126,7 +120,6 @@ async def list_transactions(cost_center_id: str):
 
             transactions.append(doc)
 
-    logger.info(f"Retornando {len(transactions)} transações para cost_center_id: {cost_center_id}")
     return transactions
 
 @router.get("/entries/month/{year}/{month}")
