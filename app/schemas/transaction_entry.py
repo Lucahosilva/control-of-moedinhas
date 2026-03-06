@@ -12,6 +12,4 @@ class TransactionEntryCreate(MongoBaseModel):
 
     status: str = "open"  # open | paid
     payment_method: str
-    account_id: PyObjectId
-    category_id: PyObjectId
-    cost_center_id: PyObjectId
+    flow_type: str = "expense"  # income | expense

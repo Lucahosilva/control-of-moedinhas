@@ -4,6 +4,7 @@ from bson import ObjectId
 
 from app.db.mongo import db
 from app.schemas.account import AccountCreate
+from app.services.transaction_service import TransactionService
 
 router = APIRouter(prefix="/accounts", tags=["Accounts"])
 
@@ -56,7 +57,7 @@ async def create_account(payload: AccountCreate):
         raise HTTPException(status_code=500, detail=f"Erro ao criar conta: {str(e)}")
 
 
-@router.get("/", response_model=List[dict])
+@router.get("/")
 async def list_accounts(cost_center_id: str = None):
     """Listar contas"""
     try:
@@ -64,16 +65,26 @@ async def list_accounts(cost_center_id: str = None):
         
         accounts = []
         async for doc in cursor:
-            doc["_id"] = str(doc["_id"])
+            # Calcular balance actual (initial_balance será usado como balance se current_balance não existir)
+            balance = doc.get("current_balance") or doc.get("initial_balance", 0)
             
-            accounts.append(doc)
+            account = {
+                "id": str(doc["_id"]),
+                "name": doc["name"],
+                "type": doc["type"],
+                "balance": balance,
+                "initial_balance": doc["initial_balance"],
+                "closing_day": doc.get("closing_day"),
+                "due_day": doc.get("due_day")
+            }
+            accounts.append(account)
         
         return accounts
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao listar contas: {str(e)}")
 
 
-@router.get("/{account_id}", response_model=dict)
+@router.get("/{account_id}")
 async def get_account(account_id: str):
     """Obter detalhes de uma conta"""
     try:
@@ -82,10 +93,72 @@ async def get_account(account_id: str):
         if not account:
             raise HTTPException(status_code=404, detail="Conta não encontrada")
         
-        account["_id"] = str(account["_id"])
+        # Calcular balance
+        balance = account.get("current_balance") or account.get("initial_balance", 0)
         
-        return account
+        return {
+            "id": str(account["_id"]),
+            "name": account["name"],
+            "type": account["type"],
+            "balance": balance,
+            "initial_balance": account["initial_balance"],
+            "closing_day": account.get("closing_day"),
+            "due_day": account.get("due_day")
+        }
     except HTTPException as e:
         raise e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao obter conta: {str(e)}")
+
+@router.patch("/{account_id}/recalculate-balance", status_code=200)
+async def recalculate_account_balance(account_id: str):
+    """
+    Recalcula o saldo da conta baseado nas transações com vencimento passado.
+    Útil para sincronizar o saldo em caso de inconsistências.
+    """
+    try:
+        account_id_obj = ObjectId(account_id)
+        account = await db.accounts.find_one({"_id": account_id_obj})
+
+        if not account:
+            raise HTTPException(status_code=404, detail="Conta não encontrada")
+        
+        # corrigir lançamentos antigos que não têm field flow_type
+        cursor = db.transaction_entries.find({"account_id": account_id_obj, "flow_type": {"$exists": False}})
+        async for entry in cursor:
+            flow = None
+            try:
+                tid = entry.get("transaction_id")
+                if tid:
+                    txn = await db.transactions.find_one({"_id": tid})
+                    if txn:
+                        flow = txn.get("flow_type")
+            except Exception:
+                flow = None
+            if not flow:
+                flow = "income" if entry.get("amount", 0) >= 0 else "expense"
+            try:
+                await db.transaction_entries.update_one({"_id": entry.get("_id")}, {"$set": {"flow_type": flow}})
+            except Exception:
+                pass
+
+        initial_balance = account.get("initial_balance", 0)
+        new_balance = await TransactionService.calculate_account_balance(
+            db, account_id_obj, initial_balance
+        )
+        
+        await db.accounts.update_one(
+            {"_id": account_id_obj},
+            {"$set": {"current_balance": new_balance}}
+        )
+        
+        return {
+            "message": "Saldo recalculado com sucesso",
+            "account_id": account_id,
+            "initial_balance": initial_balance,
+            "current_balance": new_balance
+        }
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao recalcular saldo: {str(e)}")

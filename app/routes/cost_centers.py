@@ -3,7 +3,7 @@ from typing import List
 from bson import ObjectId
 
 from app.db.mongo import db
-from app.schemas.cost_center import CostCenterCreate, CostCenterDB
+from app.schemas.cost_center import CostCenterCreate
 
 router = APIRouter(prefix="/cost-centers", tags=["Cost Centers"])
 
@@ -12,8 +12,7 @@ async def create_cost_center(payload: CostCenterCreate):
     """Criar um novo centro de custo"""
     try:
         cost_center_data = {
-            "name": payload.name,
-            "members": []
+            "name": payload.name
         }
         
         result = await db.cost_centers.insert_one(cost_center_data)
