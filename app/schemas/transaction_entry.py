@@ -13,3 +13,7 @@ class TransactionEntryCreate(MongoBaseModel):
     status: str = "open"  # open | paid
     payment_method: str
     flow_type: str = "expense"  # income | expense
+    
+    account_id: str | None = None
+    category_id: str | None = None
+    cost_center_id: str | None = None
