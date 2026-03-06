@@ -1,0 +1,1014 @@
+openapi: 3.0.3
+info:
+  title: Control of Moedinhas API
+  description: API para gerenciamento de domicílios, usuários, contas, categorias, transações e divisão de despesas.
+  version: "1.0.0"
+servers:
+  - url: http://localhost:8000
+paths:
+  /users/:
+    post:
+      summary: Criar usuário
+      tags: [Users]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+      responses:
+        '201':
+          description: Usuário criado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserCreatedResponse'
+    get:
+      summary: Listar usuários
+      tags: [Users]
+      parameters:
+        - name: household_id
+          in: query
+          schema:
+            type: string
+          required: false
+      responses:
+        '200':
+          description: Lista de usuários
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+
+  /users/{user_id}:
+    get:
+      summary: Obter usuário
+      tags: [Users]
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Usuário
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /users/household/{household_id}/members:
+    get:
+      summary: Obter membros do household
+      tags: [Users]
+      parameters:
+        - name: household_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Membros
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+
+  /households/:
+    post:
+      summary: Criar domicílio
+      tags: [Households]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HouseholdCreate'
+      responses:
+        '201':
+          description: Domicílio criado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HouseholdCreatedResponse'
+    get:
+      summary: Listar domicílios
+      tags: [Households]
+      responses:
+        '200':
+          description: Lista de domicílios
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Household'
+
+  /households/{household_id}:
+    get:
+      summary: Obter domicílio
+      tags: [Households]
+      parameters:
+        - name: household_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Domicílio
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Household'
+
+  /categories/:
+    post:
+      summary: Criar categoria
+      tags: [Categories]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryCreate'
+      responses:
+        '201':
+          description: Categoria criada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryCreatedResponse'
+    get:
+      summary: Listar categorias
+      tags: [Categories]
+      parameters:
+        - name: household_id
+          in: query
+          schema:
+            type: string
+          required: false
+      responses:
+        '200':
+          description: Lista de categorias
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+
+  /categories/{category_id}:
+    get:
+      summary: Obter categoria
+      tags: [Categories]
+      parameters:
+        - name: category_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Categoria
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+
+  /accounts/:
+    post:
+      summary: Criar conta
+      tags: [Accounts]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountCreate'
+      responses:
+        '201':
+          description: Conta criada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountCreatedResponse'
+    get:
+      summary: Listar contas
+      tags: [Accounts]
+      parameters:
+        - name: household_id
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de contas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Account'
+
+  /accounts/{account_id}:
+    get:
+      summary: Obter conta
+      tags: [Accounts]
+      parameters:
+        - name: account_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Conta
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+
+  /cost-centers/:
+    post:
+      summary: Criar centro de custo
+      tags: [Cost Centers]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CostCenterCreate'
+      responses:
+        '201':
+          description: Centro de custo criado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  cost_center_id:
+                    type: string
+                  name:
+                    type: string
+    get:
+      summary: Listar centros de custo
+      tags: [Cost Centers]
+      responses:
+        '200':
+          description: Lista de centros de custo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CostCenterDB'
+
+  /cost-centers/{cost_center_id}:
+    get:
+      summary: Obter centro de custo
+      tags: [Cost Centers]
+      parameters:
+        - name: cost_center_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Centro de custo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CostCenterDB'
+
+  /transactions/:
+    post:
+      summary: Criar transação
+      tags: [Transactions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionCreate'
+      responses:
+        '201':
+          description: Transação criada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionCreatedResponse'
+    get:
+      summary: Listar transações
+      tags: [Transactions]
+      parameters:
+        - name: cost_center_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de transações
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TransactionDB'
+
+  /transactions/{transaction_id}:
+    delete:
+      summary: Deletar transação
+      tags: [Transactions]
+      parameters:
+        - name: transaction_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Transação deletada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  transaction_id:
+                    type: string
+                  entries_deleted:
+                    type: integer
+
+  /transactions/:
+    delete:
+      summary: Deletar múltiplas transações
+      tags: [Transactions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteTransactionsFilter'
+      responses:
+        '200':
+          description: Transações deletadas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  transactions_deleted:
+                    type: integer
+                  entries_deleted:
+                    type: integer
+                  filters_applied:
+                    type: object
+
+  /transactions/entries/month/{year}/{month}:
+    get:
+      summary: Listar lançamentos por mês
+      tags: [Transactions]
+      parameters:
+        - name: year
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: month
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: cost_center_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lançamentos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TransactionEntry'
+
+  /transactions/entries/card/{account_id}/{year}/{month}:
+    get:
+      summary: Extrato de cartão por conta e mês
+      tags: [Transactions]
+      parameters:
+        - name: account_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: year
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: month
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: cost_center_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Extrato do cartão
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  competence_month:
+                    type: string
+                  total:
+                    type: number
+                  entries:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TransactionEntry'
+
+  /transactions/entries/{entry_id}/pay:
+    patch:
+      summary: Marcar lançamento como pago
+      tags: [Transactions]
+      parameters:
+        - name: entry_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lançamento marcado como pago
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericMessage'
+
+  /expense-splits/:
+    post:
+      summary: Criar divisão de despesa
+      tags: [ExpenseSplits]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExpenseSplitCreate'
+      responses:
+        '201':
+          description: Divisão criada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseSplitCreatedResponse'
+    get:
+      summary: Listar divisões de despesas
+      tags: [ExpenseSplits]
+      parameters:
+        - name: household_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: settled
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Lista de divisões
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExpenseSplitDB'
+
+  /expense-splits/{split_id}:
+    get:
+      summary: Obter divisão
+      tags: [ExpenseSplits]
+      parameters:
+        - name: split_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Divisão
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExpenseSplitDB'
+
+  /expense-splits/{split_id}/settle:
+    post:
+      summary: Resolver divisão
+      tags: [ExpenseSplits]
+      parameters:
+        - name: split_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Divisão resolvida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericMessage'
+
+  /expense-splits/household/{household_id}/balance:
+    get:
+      summary: Balanço do household
+      tags: [ExpenseSplits]
+      parameters:
+        - name: household_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Balanço
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  household_id:
+                    type: string
+                  balances:
+                    type: object
+                  total_pending:
+                    type: integer
+
+  /expense-splits/user/{user_id}/balance:
+    get:
+      summary: Balanço do usuário
+      tags: [ExpenseSplits]
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: household_id
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Balanço do usuário
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user_id:
+                    type: string
+                  user_name:
+                    type: string
+                  household_id:
+                    type: string
+                  total_balance:
+                    type: number
+                  status:
+                    type: string
+                  divisions_count:
+                    type: integer
+                  divisions:
+                    type: array
+                    items:
+                      type: object
+
+components:
+  schemas:
+    GenericMessage:
+      type: object
+      properties:
+        message:
+          type: string
+
+    UserCreate:
+      type: object
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+        household_id:
+          type: string
+
+    UserCreatedResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        user_id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        household_id:
+          type: string
+
+    HouseholdCreate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+
+    Household:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        members:
+          type: array
+          items:
+            type: string
+
+    HouseholdCreatedResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        household_id:
+          type: string
+        name:
+          type: string
+
+    CategoryCreate:
+      type: object
+      required: [name, type, household_id]
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          description: "income | expense"
+        household_id:
+          type: string
+
+    Category:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        household_id:
+          type: string
+
+    CategoryCreatedResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        category_id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        household_id:
+          type: string
+
+    AccountCreate:
+      type: object
+      required: [name, type, initial_balance, household_id]
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          description: "checking | savings | credit_card"
+        initial_balance:
+          type: number
+        closing_day:
+          type: integer
+          nullable: true
+        due_day:
+          type: integer
+          nullable: true
+        household_id:
+          type: string
+
+    Account:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        initial_balance:
+          type: number
+        current_balance:
+          type: number
+        household_id:
+          type: string
+        closing_day:
+          type: integer
+        due_day:
+          type: integer
+
+    AccountCreatedResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        account_id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        initial_balance:
+          type: number
+        household_id:
+          type: string
+
+    PaymentMethod:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [cash, debit, credit_card, pix]
+        closing_day:
+          type: integer
+          nullable: true
+        due_day:
+          type: integer
+          nullable: true
+
+    SplitUser:
+      type: object
+      properties:
+        user_id:
+          type: string
+        amount:
+          type: number
+          nullable: true
+        percentage:
+          type: number
+          nullable: true
+        paid:
+          type: boolean
+
+    TransactionCreate:
+      type: object
+      required: [description, total_amount, flow_type, transaction_type, payment_method, date]
+      properties:
+        description:
+          type: string
+        total_amount:
+          type: number
+        flow_type:
+          type: string
+          enum: [income, expense]
+        transaction_type:
+          type: string
+          enum: [single, installment, recurring]
+        payment_method:
+          $ref: '#/components/schemas/PaymentMethod'
+        date:
+          type: string
+          format: date
+        installments:
+          type: integer
+          nullable: true
+        account_id:
+          type: string
+          nullable: true
+        category_id:
+          type: string
+          nullable: true
+        cost_center_id:
+          type: string
+          nullable: true
+
+    TransactionDB:
+      type: object
+      properties:
+        id:
+          type: string
+        description:
+          type: string
+        total_amount:
+          type: number
+        amount:
+          type: number
+        flow_type:
+          type: string
+        transaction_type:
+          type: string
+        payment_method:
+          $ref: '#/components/schemas/PaymentMethod'
+        date:
+          type: string
+          format: date-time
+        account_id:
+          type: string
+        category_id:
+          type: string
+        cost_center_id:
+          type: string
+
+    TransactionCreatedResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        transaction_id:
+          type: string
+        entries_created:
+          type: integer
+
+    TransactionEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        transaction_id:
+          type: string
+          nullable: true
+        description:
+          type: string
+        amount:
+          type: number
+        competence_month:
+          type: string
+          description: "YYYY-MM"
+        due_date:
+          type: string
+          format: date
+        status:
+          type: string
+        payment_method:
+          type: string
+        account_id:
+          type: string
+        category_id:
+          type: string
+        cost_center_id:
+          type: string
+
+    CostCenterCreate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+
+    CostCenterDB:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        members:
+          type: array
+          items:
+            type: string
+
+    DeleteTransactionsFilter:
+      type: object
+      properties:
+        start_date:
+          type: string
+          format: date
+          nullable: true
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        account_id:
+          type: string
+          nullable: true
+        cost_center_id:
+          type: string
+          nullable: true
+        user_id:
+          type: string
+          nullable: true
+
+    ExpenseSplitUser:
+      type: object
+      properties:
+        user_id:
+          type: string
+        amount:
+          type: number
+        paid_by_user:
+          type: boolean
+
+    ExpenseSplitCreate:
+      type: object
+      required: [household_id, split_users, split_type]
+      properties:
+        transaction_id:
+          type: string
+          nullable: true
+        household_id:
+          type: string
+        split_users:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExpenseSplitUser'
+        split_type:
+          type: string
+        description:
+          type: string
+
+    ExpenseSplitDB:
+      type: object
+      properties:
+        id:
+          type: string
+        transaction_id:
+          type: string
+        household_id:
+          type: string
+        split_users:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExpenseSplitUser'
+        split_type:
+          type: string
+        description:
+          type: string
+        created_at:
+          type: string
+        settled:
+          type: boolean
+
+    ExpenseSplitCreatedResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        split_id:
+          type: string
+        household_id:
+          type: string
+        split_type:
+          type: string
+        users_count:
+          type: integer
+
+security: []
