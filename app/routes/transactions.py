@@ -92,19 +92,24 @@ async def create_transaction(payload: TransactionCreate):
         if payload.account_id:
             try:
                 account_id_obj = ObjectId(payload.account_id)
+                logger.debug(f"Account ID string: {payload.account_id}, ObjectId: {account_id_obj}")
                 account = await db.accounts.find_one({"_id": account_id_obj})
                 if account:
                     initial_balance = account.get("initial_balance", 0)
+                    logger.debug(f"Iniciando cálculo de saldo para conta {payload.account_id}, initial_balance: {initial_balance}")
                     new_balance = await TransactionService.calculate_account_balance(
                         db, account_id_obj, initial_balance
                     )
+                    logger.debug(f"Saldo calculado para conta {payload.account_id}: {new_balance}")
                     await db.accounts.update_one(
                         {"_id": account_id_obj},
                         {"$set": {"current_balance": new_balance}}
                     )
                     logger.debug(f"Saldo da conta {payload.account_id} atualizado para: {new_balance}")
+                else:
+                    logger.warning(f"Conta {payload.account_id} não encontrada")
             except Exception as e:
-                logger.error(f"Erro ao atualizar saldo da conta: {str(e)}")
+                logger.error(f"Erro ao atualizar saldo da conta: {str(e)}", exc_info=True)
 
         logger.info(f"Transação criada com sucesso: {transaction_id}")
         return {

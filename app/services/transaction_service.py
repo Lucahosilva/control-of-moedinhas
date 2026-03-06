@@ -118,35 +118,56 @@ class TransactionService:
         Returns:
             Saldo calculado da conta
         """
-        today = datetime.now()
+        from datetime import date as date_type
+        import logging
+        logger = logging.getLogger(__name__)
         
-        # Buscar todas as transaction_entries da conta com due_date <= hoje
+        # usar data de hoje (sem hora) para comparação segura
+        today = datetime.now().date()
+        today_end = datetime.combine(today, datetime.max.time())
+        
+        print(f"[DEBUG calc_balance] account_id: {account_id}, initial_balance: {initial_balance}, today: {today}, today_end: {today_end}")
+        logger.debug(f"[calc_balance] account_id: {account_id}, initial_balance: {initial_balance}, today: {today}, today_end: {today_end}")
+        
+        # Buscar todas as transaction_entries da conta com due_date <= hoje (fim do dia)
         cursor = db.transaction_entries.find({
-            "account_id": ObjectId(account_id),
-            "due_date": {"$lte": today},
+            "account_id": account_id,
+            "due_date": {"$lte": today_end},
             "status": "completed"
         })
         
         balance = initial_balance
+        count = 0
         async for entry in cursor:
+            count += 1
             amount = entry.get("amount", 0)
             flow_type = entry.get("flow_type")
+            due_date = entry.get("due_date")
+            
+            print(f"[DEBUG calc_balance] Entry {count}: amount={amount}, flow_type={flow_type}, due_date={due_date}")
+            logger.debug(f"[calc_balance] Entry {count}: amount={amount}, flow_type={flow_type}, due_date={due_date}")
             
             if not flow_type:
                 # tentamos obter do documento pai da transação, caso exista
                 try:
                     tid = entry.get("transaction_id")
                     if tid:
-                        txn = await db.transactions.find_one({"_id": ObjectId(tid)})
+                        txn = await db.transactions.find_one({"_id": tid})
                         if txn:
                             flow_type = txn.get("flow_type")
-                except Exception:
+                            print(f"[DEBUG calc_balance] flow_type from txn: {flow_type}")
+                            logger.debug(f"[calc_balance] flow_type from txn: {flow_type}")
+                except Exception as e:
+                    print(f"[DEBUG calc_balance] Error fetching txn: {str(e)}")
+                    logger.error(f"[calc_balance] Error fetching txn: {str(e)}")
                     flow_type = None
             
             # padrão para entradas antigas sem info: consideramos income se valor positivo e
             # não houver flow_type (protege contra saldo negativo inesperado)
             if not flow_type:
                 flow_type = "income" if amount >= 0 else "expense"
+                print(f"[DEBUG calc_balance] flow_type set by default: {flow_type}")
+                logger.debug(f"[calc_balance] flow_type set by default: {flow_type}")
                 # podemos persistir o ajuste para evitar repetir no futuro
                 try:
                     await db.transaction_entries.update_one(
@@ -161,5 +182,10 @@ class TransactionService:
                 balance += amount
             else:  # expense
                 balance -= amount
+            
+            print(f"[DEBUG calc_balance] Balance now: {balance}")
+            logger.debug(f"[calc_balance] Balance now: {balance}")
         
+        print(f"[DEBUG calc_balance] Total entries processed: {count}, final balance: {balance}")
+        logger.debug(f"[calc_balance] Total entries processed: {count}, final balance: {balance}")
         return balance

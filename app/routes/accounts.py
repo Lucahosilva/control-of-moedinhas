@@ -110,53 +110,33 @@ async def get_account(account_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao obter conta: {str(e)}")
 
-@router.patch("/{account_id}/recalculate-balance", status_code=200)
+@router.patch("/{account_id}/recalculate-balance")
 async def recalculate_account_balance(account_id: str):
     """
     Recalcula o saldo da conta baseado nas transações com vencimento passado.
     Útil para sincronizar o saldo em caso de inconsistências.
     """
     try:
-        account_id_obj = ObjectId(account_id)
-        account = await db.accounts.find_one({"_id": account_id_obj})
-
+        # Verificar se a conta existe
+        account = await db.accounts.find_one({"_id": ObjectId(account_id)})
         if not account:
             raise HTTPException(status_code=404, detail="Conta não encontrada")
-        
-        # corrigir lançamentos antigos que não têm field flow_type
-        cursor = db.transaction_entries.find({"account_id": account_id_obj, "flow_type": {"$exists": False}})
-        async for entry in cursor:
-            flow = None
-            try:
-                tid = entry.get("transaction_id")
-                if tid:
-                    txn = await db.transactions.find_one({"_id": tid})
-                    if txn:
-                        flow = txn.get("flow_type")
-            except Exception:
-                flow = None
-            if not flow:
-                flow = "income" if entry.get("amount", 0) >= 0 else "expense"
-            try:
-                await db.transaction_entries.update_one({"_id": entry.get("_id")}, {"$set": {"flow_type": flow}})
-            except Exception:
-                pass
 
+        # Calcular o novo saldo
+        transaction_service = TransactionService()
         initial_balance = account.get("initial_balance", 0)
-        new_balance = await TransactionService.calculate_account_balance(
-            db, account_id_obj, initial_balance
-        )
-        
+        new_balance = await transaction_service.calculate_account_balance(db, account_id, initial_balance)
+
+        # Atualizar o saldo da conta
         await db.accounts.update_one(
-            {"_id": account_id_obj},
+            {"_id": ObjectId(account_id)},
             {"$set": {"current_balance": new_balance}}
         )
-        
+
         return {
             "message": "Saldo recalculado com sucesso",
             "account_id": account_id,
-            "initial_balance": initial_balance,
-            "current_balance": new_balance
+            "new_balance": new_balance
         }
     except HTTPException as e:
         raise e
