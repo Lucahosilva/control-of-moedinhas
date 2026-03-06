@@ -62,3 +62,23 @@ class TransactionCreate(BaseModel):
                 raise ValueError('installments é obrigatório para transações parceladas')
         return self
 
+
+class CategoryInfo(BaseModel):
+    id: str
+    name: str
+    type: str
+
+
+class TransactionResponse(BaseModel):
+    id: str
+    description: str
+    amount: float
+    total_amount: float
+    flow_type: FlowType
+    transaction_type: TransactionType
+    date: str
+    status: str = "completed"
+    category: Optional[CategoryInfo] = None
+    account_id: Optional[str] = None
+    cost_center_id: Optional[str] = None
+

@@ -55,6 +55,7 @@ async def create_transaction(payload: TransactionCreate):
             "transaction_type": payload.transaction_type.value,
             "payment_method": payload.payment_method.model_dump(),
             "date": datetime.combine(payload.date, datetime.min.time()),
+            "status": "completed",
             "account_id": ObjectId(payload.account_id) if payload.account_id else None,
             "category_id": ObjectId(payload.category_id) if payload.category_id else None,
             "cost_center_id": ObjectId(payload.cost_center_id) if payload.cost_center_id else None,
@@ -77,6 +78,8 @@ async def create_transaction(payload: TransactionCreate):
         for entry in entries:
             entry_dict = entry.model_dump(exclude={"id"})
             entry_dict["transaction_id"] = transaction_id
+            entry_dict["status"] = "completed"
+            entry_dict["flow_type"] = payload.flow_type.value
 
             entry_dict["due_date"] = datetime.combine(entry_dict["due_date"], datetime.min.time())
             entries_to_insert.append(entry_dict)
@@ -84,6 +87,24 @@ async def create_transaction(payload: TransactionCreate):
         if entries_to_insert:
             await db.transaction_entries.insert_many(entries_to_insert)
             logger.debug(f"{len(entries_to_insert)} lançamentos inseridos no banco")
+
+        # 4. Atualizar saldo da conta se houver account_id
+        if payload.account_id:
+            try:
+                account_id_obj = ObjectId(payload.account_id)
+                account = await db.accounts.find_one({"_id": account_id_obj})
+                if account:
+                    initial_balance = account.get("initial_balance", 0)
+                    new_balance = await TransactionService.calculate_account_balance(
+                        db, account_id_obj, initial_balance
+                    )
+                    await db.accounts.update_one(
+                        {"_id": account_id_obj},
+                        {"$set": {"current_balance": new_balance}}
+                    )
+                    logger.debug(f"Saldo da conta {payload.account_id} atualizado para: {new_balance}")
+            except Exception as e:
+                logger.error(f"Erro ao atualizar saldo da conta: {str(e)}")
 
         logger.info(f"Transação criada com sucesso: {transaction_id}")
         return {
@@ -99,26 +120,43 @@ async def create_transaction(payload: TransactionCreate):
         logger.error(f"Erro ao criar transação: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Erro ao criar transação: {str(e)}")
 
-@router.get("/", response_model=List[dict])
+@router.get("/")
 async def list_transactions():
-
-    cursor = db.transactions.find()
+    cursor = db.transactions.find().limit(100)
 
     transactions = []
     async for doc in cursor:
-            doc["_id"] = str(doc["_id"])
-            # Convert possible ObjectId fields to strings for JSON serialization
-            for fk in ("transaction_id", "account_id", "category_id", "cost_center_id"):
-                if fk in doc and doc[fk] is not None:
-                    try:
-                        doc[fk] = str(doc[fk])
-                    except Exception:
-                        pass
-            # Convert datetime fields
-            if "date" in doc and hasattr(doc["date"], "isoformat"):
-                doc["date"] = doc["date"].isoformat()
+        # Buscar categoria se existir
+        category_data = None
+        if doc.get("category_id"):
+            try:
+                category = await db.categories.find_one({"_id": doc["category_id"]})
+                if category:
+                    category_data = {
+                        "id": str(category["_id"]),
+                        "name": category.get("name", "Sem categoria"),
+                        "type": category.get("type", "expense")
+                    }
+            except Exception as e:
+                logger.error(f"Erro ao buscar categoria: {e}")
 
-            transactions.append(doc)
+        # Converter datetime para ISO string
+        date_str = doc["date"].isoformat() if hasattr(doc["date"], "isoformat") else str(doc["date"])
+
+        transaction = {
+            "id": str(doc["_id"]),
+            "description": doc["description"],
+            "amount": doc["amount"],
+            "total_amount": doc["total_amount"],
+            "flow_type": doc["flow_type"],
+            "transaction_type": doc["transaction_type"],
+            "date": date_str,
+            "status": doc.get("status", "completed"),
+            "category": category_data,
+            "account_id": str(doc["account_id"]) if doc.get("account_id") else None,
+            "cost_center_id": str(doc["cost_center_id"]) if doc.get("cost_center_id") else None,
+        }
+        transactions.append(transaction)
 
     return transactions
 
@@ -248,15 +286,36 @@ async def delete_transaction(transaction_id: str):
         logger.error(f"transaction_id inválido: {transaction_id}")
         raise HTTPException(status_code=400, detail=f"transaction_id '{transaction_id}' is not a valid ObjectId")
 
-    # Deleta a transação
-    transaction_result = await db.transactions.delete_one({"_id": tid})
-    
-    if transaction_result.deleted_count == 0:
+    # Busca a transação antes de deletá-la para pegar a conta associada
+    transaction = await db.transactions.find_one({"_id": tid})
+    if not transaction:
         logger.warning(f"Transação não encontrada: {transaction_id}")
         raise HTTPException(status_code=404, detail="Transação não encontrada")
+    
+    account_id = transaction.get("account_id")
+
+    # Deleta a transação
+    transaction_result = await db.transactions.delete_one({"_id": tid})
 
     # Deleta todos os lançamentos associados
     entries_result = await db.transaction_entries.delete_many({"transaction_id": tid})
+    
+    # Atualizar saldo da conta se houver account_id
+    if account_id:
+        try:
+            account = await db.accounts.find_one({"_id": account_id})
+            if account:
+                initial_balance = account.get("initial_balance", 0)
+                new_balance = await TransactionService.calculate_account_balance(
+                    db, account_id, initial_balance
+                )
+                await db.accounts.update_one(
+                    {"_id": account_id},
+                    {"$set": {"current_balance": new_balance}}
+                )
+                logger.debug(f"Saldo da conta atualizado após deleção para: {new_balance}")
+        except Exception as e:
+            logger.error(f"Erro ao atualizar saldo da conta após deleção: {str(e)}")
     
     logger.info(f"Transação deletada: {transaction_id}, {entries_result.deleted_count} lançamentos removidos")
     return {
@@ -340,8 +399,11 @@ async def delete_multiple_transactions(filters: DeleteTransactionsFilter):
         logger.debug(f"Buscando transações com filtros: {query_filter}")
         transactions_cursor = db.transactions.find(query_filter)
         transaction_ids = []
+        account_ids = set()
         async for doc in transactions_cursor:
             transaction_ids.append(doc["_id"])
+            if doc.get("account_id"):
+                account_ids.add(doc["account_id"])
 
         logger.debug(f"Encontradas {len(transaction_ids)} transações para deletar")
 
@@ -356,6 +418,23 @@ async def delete_multiple_transactions(filters: DeleteTransactionsFilter):
         # Deleta todos os lançamentos associados
         logger.debug(f"Deletando lançamentos associados às transações")
         entries_result = await db.transaction_entries.delete_many({"transaction_id": {"$in": transaction_ids}})
+
+        # Atualizar saldo das contas afetadas
+        for account_id in account_ids:
+            try:
+                account = await db.accounts.find_one({"_id": account_id})
+                if account:
+                    initial_balance = account.get("initial_balance", 0)
+                    new_balance = await TransactionService.calculate_account_balance(
+                        db, account_id, initial_balance
+                    )
+                    await db.accounts.update_one(
+                        {"_id": account_id},
+                        {"$set": {"current_balance": new_balance}}
+                    )
+                    logger.debug(f"Saldo da conta atualizado após deleção para: {new_balance}")
+            except Exception as e:
+                logger.error(f"Erro ao atualizar saldo da conta após deleção: {str(e)}")
 
         logger.info(f"Transações deletadas: {transactions_result.deleted_count}, lançamentos removidos: {entries_result.deleted_count}")
         return {

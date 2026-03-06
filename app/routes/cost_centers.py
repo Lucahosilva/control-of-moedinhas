@@ -31,9 +31,7 @@ async def list_cost_centers():
     """Listar todos os centros de custo"""
     try:
         cursor = db.cost_centers.find()
-        print("Chegou aqui")
         cost_centers = []
-        print("cursor:", cursor)
         
         async for doc in cursor:
             doc["_id"] = str(doc["_id"])
